@@ -1,0 +1,55 @@
+import java.util.logging.Level;
+import java.util.logging.LogManager;
+import java.util.logging.Logger;
+import java.util.logging.* ;
+
+public class LogMessenger 
+	{
+    
+             Logger logger ;
+            
+            LogMessenger()
+                 {
+                        logger = Logger.getLogger("MyLog");  
+    			     FileHandler fh;  
+
+    						try {  
+
+        							// This block configure the logger with handler and formatter  
+        							fh = new FileHandler("/var/log/msngr/Msngr.log");  
+        							logger.addHandler(fh);
+        							SimpleFormatter formatter = new SimpleFormatter();  
+        							fh.setFormatter(formatter);  
+
+        							// the following statement is used to log any messages  
+        							 
+
+    							}
+    					      catch (SecurityException e) {  
+        							e.printStackTrace();  
+    								} 
+    					      catch (IOException e) {  
+        							e.printStackTrace();  
+    							      }  
+
+    				  
+
+		}	
+		
+		
+		public void logMsngr(String s)
+			{
+			    
+				logger.log(Level.SEVERE,s) ;
+			}
+                 
+                 
+                 
+         }       
+
+
+
+
+
+
+	

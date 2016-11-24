@@ -1,0 +1,124 @@
+package in.swifiic.app.msngr.hub;
+
+import ibrdtn.example.api.DTNClient;
+import in.swifiic.plat.helper.hub.Base;
+import in.swifiic.plat.helper.hub.DatabaseHelper;
+import in.swifiic.plat.helper.hub.Helper;
+import in.swifiic.plat.helper.hub.SwifiicHandler;
+import in.swifiic.plat.helper.hub.xml.Action;
+import in.swifiic.plat.helper.hub.xml.Notification;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.logging.Level;
+import java.util.logging.LogManager;
+import java.util.logging.Logger;
+
+import ibrdtn.api.ExtendedClient;
+
+
+public class Messenger extends Base implements SwifiicHandler {
+	
+	//private static final Logger tmpLog = Logger.getLogger("myLogger");
+	//private static final Logger logger = LogManager.getLogManager().getLogger("myLogger");
+    private LogMessenger logger ;
+    private DTNClient dtnClient;
+    
+    protected ExecutorService executor = Executors.newCachedThreadPool();
+    
+    // Following is the name of the endpoint to register with
+    protected String PRIMARY_EID = "Msngr";
+ //    public static org.apache.logging.log4j.Logger logNew=org.apache.logging.log4j.LogManager.getLogger("in.swifiic.app.msngr.hub.Messenger");
+    public Messenger() {
+        // Initialize connection to daemon
+         logger = new LogMessenger() ;
+        dtnClient = getDtnClient(PRIMARY_EID, this);
+          logger.logMsngr(dtnClient.getConfiguration()) ;
+        //logger.log(Level.INFO, dtnClient.getConfiguration());
+//logNew.info(dtnClient.getConfiguration());
+
+    }
+    
+    public static void main(String args[]) throws IOException {
+    	BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    	Messenger messenger = new Messenger();
+    	String input;
+    	while(true) {
+		logger.logMsngr("Enter \"exit\" to exit application: \n") ;
+		//logger.log(Level.INFO , "Enter \"exit\" to exit application: \n");
+	    	input = br.readLine();
+		while(null == input) {
+			input = br.readLine();
+		}
+	    	if(input.equalsIgnoreCase("exit")) {
+	    		messenger.exit();
+	    	}
+		ExtendedClient ec = messenger.getDtnClientInstance().getEC();
+		if(!ec.isConnected()){
+			//logger.log(Level.SEVERE , "Messenger attempting reconnect with the service\n");
+			logger.logMsngr("Messenger attempting reconnect with the service\n") ;
+			messenger.getDtnClientInstance().reconnect();
+		}
+	    }
+    }
+
+	@Override
+	public void handlePayload(String payload, final Context ctx,String srcurl) {
+		final String message = new String(payload);
+		logger.logMsngr("srcurl"+"\n") ;
+		//logger.log(Level.INFO , srcurl+"\n");
+		logger.logMsngr("Got Message:" + "\n") ;
+		//logger.log(Level.INFO,"Got Message:" + "\n");
+		logger.logMsngr("Got Payload:" + payload +"\n") ;
+		//logger.log(Level.INFO , "Got Payload:" + payload +"\n");
+//		logNew.info("\n Got Message:" +payload);
+		executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                	logger.logMsngr("In run function Message:" + message+ "\n") ;
+                	//logger.log(Level.INFO , "In run function Message:" + message+ "\n");
+                	Action action = Helper.parseAction(message);
+			if(null == action) {//throw new Exception("Failed to parse message:" + message);
+				logger.logMsngr("Failed to parse message:" + message+" \n") ;
+				//logger.log(Level.SEVERE,"Failed to parse message:" + message+" \n");
+			}
+					Notification notif = new Notification(action);
+                	notif.updateNotificatioName("DeliverMessage");
+                	
+                	String toUser = action.getArgument("toUser");
+                	String fromUser=action.getArgument("fromUser");
+                	
+              
+                	
+                	// A user may have multiple devices - deprecated for now - only one device per user
+                	String deviceDtnId = Helper.getDeviceDtnIdForUser(toUser, ctx); 
+                 	
+                	String response = Helper.serializeNotification(notif);
+                	send(deviceDtnId + "/in.swifiic.app.msngr.andi" , response);
+                		// Mark bundle as delivered...                    
+                        logger.logMsngr("Attempted to send to" + deviceDtnid + "/in.swifiic.app.msngr.andi" + "had recieved" + message + "and responded with" +response );
+                        //logger.log(Level.INFO, "Attempted to send to {1}, had received \n{0}\n and responsed with \n {2}", 
+                        				//new Object[] {message, deviceDtnId + "/in.swifiic.app.msngr.andi", response});
+                	boolean status = Helper.debitUser(fromUser);
+                } catch (Exception e) {
+                         logger.logMsngr( "Unable to process message and send response\n" + e.getMessage()) ;
+                    logger.log(Level.SEVERE, "Unable to process message and send response\n" + e.getMessage());
+		    e.printStackTrace();
+//		    logNew.info("Unable to process message and send response\n" + e.getMessage());
+                }
+            }
+        });
+		
+	}
+	
+}
